@@ -1,4 +1,5 @@
 name: APK Build
+
 on:
   push:
   workflow_dispatch:
@@ -9,81 +10,68 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Depoyu Al
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Python 3.11 Kur
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Sistem Bağımlılıkları
+      - name: Sistem Paketleri
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk-headless \
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk-headless \
             autoconf automake libtool libtool-bin pkg-config \
             zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev \
             build-essential ccache python3-venv \
             libltdl-dev gettext autopoint
 
-      - name: Pip Paketleri
+      - name: Python Paketleri
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          pip install --upgrade pip
           pip install "buildozer==1.5.0" "cython==0.29.36" virtualenv
 
-      - name: Buildozer Önbelleği
+      - name: Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
             ~/.gradle
-          key: buildozer-v3-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-v3-${{ runner.os }}-
+          key: bz-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: APK Derle
+      - name: Derle
         id: build
         continue-on-error: true
         run: |
           set -o pipefail
           export BUILDOZER_WARN_ON_ROOT=0
           export ANDROID_ACCEPT_SDK_LICENSE=1
-          buildozer -v android debug 2>&1 | tee buildozer_full.log
-          echo "buildozer_exit=$?" >> $GITHUB_OUTPUT
+          buildozer android debug 2>&1 | tee full.log
 
-      - name: Hata Olursa Logu Göster
-        if: steps.build.outcome == 'failure'
-        run: |
-          echo "❌ DERLEME BAŞARISIZ — Son 200 satır:"
-          echo "==============================================="
-          tail -200 buildozer_full.log
-          echo "==============================================="
-          echo "📋 Log dosyası: buildozer_full.log"
-
-      - name: Başarılı Olursa bin/ Listele
-        if: steps.build.outcome == 'success'
-        run: |
-          echo "✅ DERLEME BAŞARILI"
-          ls -la bin/ || echo "bin/ boş"
-          find . -name "*.apk" -type f 2>/dev/null || echo "APK yok"
-
-      - name: Log Dosyasını Yükle (Her Durumda)
+      - name: Son 250 Satır (Her Durumda Göster)
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: buildozer_full.log
-          retention-days: 7
+        run: |
+          echo "════════════════════════════════════════"
+          echo "SON 250 SATIR — BUILD LOG"
+          echo "════════════════════════════════════════"
+          tail -250 full.log
+          echo "════════════════════════════════════════"
+          echo "bin/ İÇERİĞİ:"
+          ls -la bin/ || true
+          echo "════════════════════════════════════════"
 
       - name: APK Yükle
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: PansiyonNobet-APK
-          path: |
-            bin/*.apk
-            **/*.apk
-          retention-days: 90
+          name: APK
+          path: bin/*.apk
           if-no-files-found: warn
+
+      - name: Log Yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: full.log
+          retention-days: 7
