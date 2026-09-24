@@ -5,31 +5,65 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Depoyu Al
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 Kur
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Bağımlılıkları Kur
+
+      - name: Sistem Bağımlılıkları
         run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk autoconf \
-            libtool pkg-config zlib1g-dev libncurses5-dev \
-            libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.36
-      - name: Buildozer Önbelleği
-        uses: actions/cache@v3
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk-headless \
+            autoconf automake libtool libtool-bin pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev \
+            build-essential ccache python3-venv \
+            libltdl-dev gettext autopoint
+
+      - name: Java Sürümünü Doğrula
+        run: java -version && echo "JAVA_HOME=$JAVA_HOME"
+
+      - name: Pip Paketleri
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install buildozer cython==0.29.36 virtualenv
+
+      - name: Buildozer Önbellek (SDK/NDK)
+        uses: actions/cache@v4
         with:
-          path: ~/.buildozer
-          key: buildozer-${{ runner.os }}
-      - name: APK Derle
+          path: |
+            ~/.buildozer
+            ~/.gradle
+          key: buildozer-v2-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-v2-${{ runner.os }}-
+
+      - name: APK Derle (Debug)
+        env:
+          ANDROID_ACCEPT_SDK_LICENSE: "1"
         run: |
-          yes | buildozer -v android debug
+          export BUILDOZER_WARN_ON_ROOT=0
+          buildozer -v android debug 2>&1 | tail -100
+
+      - name: Derleme Çıktısını Listele
+        if: always()
+        run: |
+          echo "=== bin/ içeriği ==="
+          ls -la bin/ || echo "bin klasörü yok"
+
       - name: APK Yükle
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: PansiyonNobet-APK
           path: bin/*.apk
           retention-days: 90
+          if-no-files-found: error
